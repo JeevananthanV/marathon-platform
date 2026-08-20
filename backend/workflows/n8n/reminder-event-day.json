@@ -1,0 +1,138 @@
+{
+  "name": "Marathon - 06. Event-Day Morning Reminder Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 4 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger (Race Morning 4AM)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "reminder-event-day",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "name": "Manual Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 480]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.BACKEND_API_URL || 'http://localhost:8000' }}/api/v1/automation/eligible-participants?reminder_type=event_day",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-Webhook-Secret",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            }
+          ]
+        }
+      },
+      "name": "Fetch Eligible Confirmed Participants",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 380]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "participants",
+        "options": {}
+      },
+      "name": "Split Participants Array",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3,
+      "position": [700, 380]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.BACKEND_API_URL || 'http://localhost:8000' }}/api/v1/automation/trigger-action",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-Webhook-Secret",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"action\": \"whatsapp_reminder\",\n  \"reminder_type\": \"event_day\",\n  \"registration_id\": \"{{ $json.registration_id }}\"\n}"
+      },
+      "name": "Dispatch WhatsApp Event-Day Reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [950, 380]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Race Morning 4AM)": {
+      "main": [
+        [
+          {
+            "node": "Fetch Eligible Confirmed Participants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Eligible Confirmed Participants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Eligible Confirmed Participants": {
+      "main": [
+        [
+          {
+            "node": "Split Participants Array",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Participants Array": {
+      "main": [
+        [
+          {
+            "node": "Dispatch WhatsApp Event-Day Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

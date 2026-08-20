@@ -1,0 +1,98 @@
+services:
+  # 1. PostgreSQL Relational Database
+  db:
+    image: postgres:16-alpine
+    container_name: marathon_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-marathon_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-marathon_secure_password_123}
+      POSTGRES_DB: ${POSTGRES_DB:-marathon_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-marathon_admin} -d ${POSTGRES_DB:-marathon_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  # 2. FastAPI Backend Application Server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: marathon_backend
+    restart: unless-stopped
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - DEBUG=${DEBUG:-true}
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-marathon_admin}:${POSTGRES_PASSWORD:-marathon_secure_password_123}@db:5432/${POSTGRES_DB:-marathon_db}
+      - INTEGRATIONS_MOCK_MODE=${INTEGRATIONS_MOCK_MODE:-true}
+      - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID:-rzp_test_placeholder_key}
+      - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET:-rzp_test_placeholder_secret}
+      - RAZORPAY_WEBHOOK_SECRET=${RAZORPAY_WEBHOOK_SECRET:-rzp_webhook_secret_123}
+      - ZOHO_CLIENT_ID=${ZOHO_CLIENT_ID:-mock_zoho_client_id}
+      - ZOHO_CLIENT_SECRET=${ZOHO_CLIENT_SECRET:-mock_zoho_client_secret}
+      - ZOHO_REFRESH_TOKEN=${ZOHO_REFRESH_TOKEN:-mock_zoho_refresh_token}
+      - ZOHO_API_DOMAIN=${ZOHO_API_DOMAIN:-https://www.zohoapis.com}
+      - WHATSAPP_ACCESS_TOKEN=${WHATSAPP_ACCESS_TOKEN:-mock_whatsapp_access_token}
+      - WHATSAPP_PHONE_NUMBER_ID=${WHATSAPP_PHONE_NUMBER_ID:-100000000000001}
+      - WHATSAPP_BUSINESS_ACCOUNT_ID=${WHATSAPP_BUSINESS_ACCOUNT_ID:-200000000000001}
+      - WHATSAPP_WEBHOOK_VERIFY_TOKEN=${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-mock_verify_token_marathon_2026}
+      - N8N_BASE_URL=${N8N_BASE_URL:-http://n8n:5678}
+      - N8N_WEBHOOK_SECRET=${N8N_WEBHOOK_SECRET:-n8n_secure_webhook_secret_2026}
+      - META_PIXEL_ID=${META_PIXEL_ID:-mock_pixel_1234567890}
+      - META_ACCESS_TOKEN=${META_ACCESS_TOKEN:-mock_meta_access_token}
+      - META_API_VERSION=${META_API_VERSION:-v20.0}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # 3. React + Vite Nginx Frontend Web Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: marathon_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  pgdata:
+    driver: local

@@ -105,7 +105,7 @@ class RegistrationService:
             (Participant.email == part_data.email) | (Participant.phone_number == part_data.phone_number)
         )
         part_result = await db.execute(part_query)
-        participant = part_result.scalar_one_or_none()
+        participant = part_result.scalars().first()
 
         if not participant:
             participant = Participant(

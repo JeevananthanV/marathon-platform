@@ -124,3 +124,4 @@ python -m pytest
 
 - **Database Connection Refused**: Ensure PostgreSQL is running on port 5432 or use `docker-compose up db`.
 - **Razorpay Signature Mismatch**: Verify `RAZORPAY_KEY_SECRET` matches your test webhook secret exactly.
+
